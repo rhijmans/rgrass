@@ -5,7 +5,7 @@
 readRAST <- function(vname, cat=NULL, ignore.stderr=get.ignore.stderrOption(), 
 	NODATA=NULL, plugin=get.pluginOption(), mapset=NULL, 
         useGDAL=get.useGDALOption(), close_OK=TRUE, drivername="GTiff",
-        driverFileExt=NULL, return_SGDF=TRUE) {
+        driverFileExt=NULL, return_SGDF=TRUE, return_filenames=FALSE) {
 
     R_in_sp <- isTRUE(.get_R_interface() == "sp")
 
@@ -41,7 +41,7 @@ readRAST <- function(vname, cat=NULL, ignore.stderr=get.ignore.stderrOption(),
                     resa <- .read_rast_non_plugin(vname=vname, NODATA=NODATA,
                         driverFileExt=driverFileExt, 
                         ignore.stderr=ignore.stderr, return_SGDF=return_SGDF, 
-                        cat=cat, R_in_sp=R_in_sp)
+                        cat=cat, R_in_sp=R_in_sp, return_filenames=return_filenames)
                 }
             },
             finally = {
@@ -60,7 +60,7 @@ readRAST <- function(vname, cat=NULL, ignore.stderr=get.ignore.stderrOption(),
 }
 
 
-.read_rast_non_plugin <- function(vname, NODATA, driverFileExt, ignore.stderr, return_SGDF, cat, R_in_sp){
+.read_rast_non_plugin <- function(vname, NODATA, driverFileExt, ignore.stderr, return_SGDF, cat, R_in_sp, return_filenames=FALSE){
     {
 	pid <- as.integer(round(runif(1, 1, 1000)))
 
@@ -94,7 +94,7 @@ readRAST <- function(vname, cat=NULL, ignore.stderr=get.ignore.stderrOption(),
                 if (!is.null(driverFileExt)) {
                     gtmpfl11 <- paste(gtmpfl1, driverFileExt, sep=".")
                     rtmpfl11 <- paste(rtmpfl1, driverFileExt, sep=".")
-                }
+                } 
 
                 if (!is.null(NODATA)) {
 		    if (!is.finite(NODATA) || !is.numeric(NODATA))
@@ -140,6 +140,13 @@ readRAST <- function(vname, cat=NULL, ignore.stderr=get.ignore.stderrOption(),
                                   null=as.integer(NODATA),
                                   ignore.stderr=ignore.stderr)
                         
+						if (return_filenames) {
+							ff <- list.files(rtmpfl1, pattern=paste0(vname[i], ".*hdr$"), full.names=TRUE)
+							fv <- gsub("\\.hdr$", "", ff)
+							fb <- paste0(fv, ".bil")
+							file.rename(fv, fb)
+							return(fb)
+						}
                         gdal_info <- bin_gdal_info(rtmpfl11, to_int)
                         
                         what <- ifelse(to_int, "integer", "double")
@@ -151,9 +158,11 @@ readRAST <- function(vname, cat=NULL, ignore.stderr=get.ignore.stderrOption(),
                                                         nodata=attr(gdal_info, "nodata"))
                     },
                     finally = {
-                        unlink(paste(rtmpfl1, list.files(rtmpfl1,
+						if (!return_filenames) {
+							unlink(paste(rtmpfl1, list.files(rtmpfl1,
                                                          pattern=vname[i]), sep=.Platform$file.sep))
-                    }
+						}
+					}
                 )
 
 #		if (i == 1) resa <- res
